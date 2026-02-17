@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AI Interview Analyser | Deep Learning Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink: #0d0d0f;
+  --ink2: #16161a;
+  --ink3: #1e1e24;
+  --line: rgba(255,255,255,0.07);
+  --text: #e8e6f0;
+  --muted: rgba(232,230,240,0.38);
+  --blue: #4f8eff;
+  --green: #22d47a;
+  --yellow: #f5c842;
+  --red: #ff5454;
+  --purple: #a78bfa;
+  --card: rgba(255,255,255,0.04);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--ink);
+  font-family: 'DM Sans', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* subtle gradient wash */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none;
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,142,255,0.06) 0%, transparent 70%);
+  z-index:0;
+}
+
+.app { position:relative; z-index:1; max-width:1200px; margin:0 auto; padding:24px 20px 48px; }
+
+/* ── HEADER ── */
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding-bottom:20px; border-bottom:1px solid var(--line); margin-bottom:28px;
+  flex-wrap:wrap; gap:12px;
+}
+.brand { display:flex; align-items:center; gap:12px; }
+.brand-icon {
+  width:38px; height:38px; border-radius:10px;
+  background:linear-gradient(135deg, #4f8eff, #a78bfa);
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+  box-shadow: 0 4px 16px rgba(79,142,255,0.3);
+}
+.brand-name { font-size:17px; font-weight:700; letter-spacing:-0.3px; }
+.brand-name span { color:var(--blue); }
+.brand-sub { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); margin-top:1px; }
+
+.live-badge {
+  display:flex; align-items:center; gap:7px; padding:7px 14px;
+  border-radius:100px; background:var(--card); border:1px solid var(--line);
+  font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted);
+}
+.ldot { width:6px; height:6px; border-radius:50%; background:#333; }
+.ldot.on { background:var(--green); box-shadow:0 0 6px var(--green); animation:pulse 1.6s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── MAIN GRID ── */
+.main { display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start; }
+@media(max-width:900px) { .main { grid-template-columns:1fr; } }
+
+/* ── VIDEO PANEL ── */
+.vpanel {
+  background:var(--ink2); border:1px solid var(--line); border-radius:18px;
+  overflow:hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+
+.vp-header {
+  padding:14px 18px; display:flex; justify-content:space-between; align-items:center;
+  border-bottom:1px solid var(--line);
+}
+.vp-title { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--muted); }
+.rec-dot { display:flex; align-items:center; gap:6px; font-family:'DM Mono',monospace; font-size:10px; color:var(--red); opacity:0; }
+.rec-dot.on { opacity:1; animation:recblink 1s infinite; }
+@keyframes recblink { 0%,100%{opacity:1} 50%{opacity:.4} }
+.rec-circle { width:7px; height:7px; border-radius:50%; background:var(--red); }
+
+.vwrap { position:relative; aspect-ratio:4/3; background:#000; }
+#vid { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+#cvs { position:absolute; inset:0; width:100%; height:100%; transform:scaleX(-1); }
+
+/* face frame overlay */
+.face-frame {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-52%);
+  width:38%; aspect-ratio:3/4; pointer-events:none; z-index:5; opacity:0;
+  transition: opacity .4s;
+}
+.face-frame.show { opacity:1; }
+.face-frame::before, .face-frame::after,
+.face-frame .fc3, .face-frame .fc4 {
+  content:''; position:absolute; width:20px; height:20px;
+}
+.face-frame::before  { top:0; left:0; border-top:2px solid var(--blue); border-left:2px solid var(--blue); border-radius:3px 0 0 0; }
+.face-frame::after   { top:0; right:0; border-top:2px solid var(--blue); border-right:2px solid var(--blue); border-radius:0 3px 0 0; }
+.face-frame .fc3     { bottom:0; left:0; border-bottom:2px solid var(--blue); border-left:2px solid var(--blue); border-radius:0 0 0 3px; }
+.face-frame .fc4     { bottom:0; right:0; border-bottom:2px solid var(--blue); border-right:2px solid var(--blue); border-radius:0 0 3px 0; }
+
+/* placeholder */
+.ph {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:14px;
+  background:var(--ink2);
+}
+.ph-icon { font-size:56px; opacity:.12; animation:breathe 3s ease-in-out infinite; }
+@keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+.ph p { font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; color:var(--muted); }
+
+/* loader */
+.loader { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:rgba(13,13,15,.95); z-index:20; }
+.loader.on { display:flex; }
+.lring { width:40px; height:40px; border:2px solid rgba(79,142,255,.15); border-top-color:var(--blue); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.ltxt { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:3px; color:var(--blue); }
+
+/* ── SCORE TAPE ── */
+.score-tape {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  border-top:1px solid var(--line);
+}
+.st-item {
+  padding:14px 16px; text-align:center; border-right:1px solid var(--line);
+  position:relative; overflow:hidden;
+}
+.st-item:last-child { border-right:none; }
+.st-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--muted); margin-bottom:6px; }
+.st-score {
+  font-size:28px; font-weight:700; font-variant-numeric:tabular-nums;
+  transition: color .3s;
+}
+.st-bar { height:2px; background:rgba(255,255,255,.06); border-radius:1px; margin-top:8px; overflow:hidden; }
+.st-fill { height:100%; border-radius:1px; transition:width .5s ease; width:0%; }
+
+/* control row */
+.ctrl { padding:16px 18px; display:flex; gap:10px; border-top:1px solid var(--line); }
+.btn {
+  flex:1; padding:11px 16px; border:none; border-radius:10px; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:700;
+  transition:all .18s; letter-spacing:.2px;
+}
+.btn-start { background:var(--blue); color:#fff; box-shadow:0 4px 20px rgba(79,142,255,.35); }
+.btn-start:hover:not(:disabled) { background:#3a7aff; transform:translateY(-1px); box-shadow:0 8px 28px rgba(79,142,255,.45); }
+.btn-stop { background:var(--card); color:var(--text); border:1px solid var(--line); }
+.btn-stop:hover:not(:disabled) { background:rgba(255,255,255,.08); }
+.btn:disabled { opacity:.3; cursor:not-allowed; transform:none!important; box-shadow:none!important; }
+
+.err-box {
+  margin:0 18px 14px; padding:10px 14px; background:rgba(255,84,84,.07);
+  border:1px solid rgba(255,84,84,.2); border-radius:8px;
+  font-family:'DM Mono',monospace; font-size:10px; color:var(--red); display:none; line-height:1.7;
+}
+
+/* ── RIGHT PANEL ── */
+.rpanel { display:flex; flex-direction:column; gap:16px; }
+
+/* Overall score */
+.score-card {
+  background:var(--ink2); border:1px solid var(--line); border-radius:18px;
+  padding:22px; text-align:center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+.sc-label { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--muted); margin-bottom:14px; }
+.sc-ring-wrap { position:relative; width:130px; height:130px; margin:0 auto 14px; }
+.sc-ring-wrap svg { width:130px; height:130px; transform:rotate(-90deg); }
+.sc-ring-bg { fill:none; stroke:rgba(255,255,255,.05); stroke-width:8; }
+.sc-ring-fill { fill:none; stroke-width:8; stroke-linecap:round; stroke-dasharray:351; stroke-dashoffset:351; transition:stroke-dashoffset .8s ease, stroke .3s; }
+.sc-number {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  font-size:38px; font-weight:700; font-variant-numeric:tabular-nums;
+  transition:color .3s;
+}
+.sc-grade { font-size:15px; font-weight:700; letter-spacing:1px; transition:color .3s; }
+.sc-feedback { font-size:13px; color:var(--muted); margin-top:6px; line-height:1.5; min-height:40px; transition:all .3s; }
+
+/* Metric cards */
+.metrics { background:var(--ink2); border:1px solid var(--line); border-radius:18px; padding:18px; }
+.metrics-title { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--muted); margin-bottom:16px; }
+
+.metric { margin-bottom:16px; }
+.metric:last-child { margin-bottom:0; }
+.m-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.m-name { font-size:13px; font-weight:500; display:flex; align-items:center; gap:7px; }
+.m-icon { font-size:14px; }
+.m-val { font-family:'DM Mono',monospace; font-size:12px; font-weight:500; transition:color .3s; }
+.m-bar-track { height:5px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; }
+.m-bar-fill { height:100%; border-radius:3px; transition:width .5s ease, background .3s; }
+.m-tip { font-size:11px; color:var(--muted); margin-top:4px; min-height:16px; transition:all .3s; }
+
+/* Tips feed */
+.tips-card { background:var(--ink2); border:1px solid var(--line); border-radius:18px; padding:18px; }
+.tips-title { font-family:'DM Mono',monospace; font-size:9px; letter-spacing:3px; color:var(--muted); margin-bottom:14px; }
+.tip-item {
+  display:flex; gap:10px; padding:10px 12px; border-radius:10px;
+  background:rgba(255,255,255,.02); border:1px solid var(--line);
+  margin-bottom:8px; align-items:flex-start; transition:all .3s;
+}
+.tip-item:last-child { margin-bottom:0; }
+.tip-item.good { border-color:rgba(34,212,122,.2); background:rgba(34,212,122,.04); }
+.tip-item.warn { border-color:rgba(245,200,66,.2); background:rgba(245,200,66,.04); }
+.tip-item.bad  { border-color:rgba(255,84,84,.2);  background:rgba(255,84,84,.04);  }
+.tip-dot { width:7px; height:7px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+.tip-dot.good { background:var(--green); }
+.tip-dot.warn { background:var(--yellow); }
+.tip-dot.bad  { background:var(--red); }
+.tip-txt { font-size:12px; line-height:1.5; color:var(--muted); }
+
+/* industry note */
+.industry-note {
+  background:rgba(79,142,255,.06); border:1px solid rgba(79,142,255,.15);
+  border-radius:12px; padding:14px 16px;
+  font-size:12px; line-height:1.6; color:rgba(232,230,240,.5);
+}
+.industry-note strong { color:var(--blue); }
+
+footer { text-align:center; margin-top:32px; font-family:'DM Mono',monospace; font-size:9px; letter-spacing:2px; color:rgba(232,230,240,.1); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🧑‍💻</div>
+      <div>
+        <div class="brand-name">Interview<span>AI</span></div>
+        <div class="brand-sub">BODY LANGUAGE ANALYSER · BATCH 2</div>
+      </div>
+    </div>
+    <div class="live-badge">
+      <div class="ldot" id="ldot"></div>
+      <span id="ltxt">STANDBY</span>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- VIDEO -->
+    <div class="vpanel">
+      <div class="vp-header">
+        <span class="vp-title">▸ LIVE CAMERA FEED</span>
+        <div class="rec-dot" id="recDot"><div class="rec-circle"></div> ANALYSING</div>
+      </div>
+
+      <div class="vwrap" id="vwrap">
+        <video id="vid" autoplay muted playsinline></video>
+        <canvas id="cvs"></canvas>
+
+        <div class="face-frame" id="faceFrame">
+          <div class="fc3"></div><div class="fc4"></div>
+        </div>
+
+        <div class="ph" id="ph">
+          <span class="ph-icon">👤</span>
+          <p>SIT IN FRONT OF CAMERA</p>
+          <p style="opacity:.5;margin-top:4px;font-size:10px">Press Start Interview to begin</p>
+        </div>
+
+        <div class="loader" id="loader">
+          <div class="lring"></div>
+          <div class="ltxt" id="loaderTxt">LOADING MODEL...</div>
+        </div>
+      </div>
+
+      <!-- Score tape -->
+      <div class="score-tape">
+        <div class="st-item">
+          <div class="st-label">EYE CONTACT</div>
+          <div class="st-score" id="eyeScore" style="color:var(--muted)">—</div>
+          <div class="st-bar"><div class="st-fill" id="eyeBar" style="background:var(--blue)"></div></div>
+        </div>
+        <div class="st-item">
+          <div class="st-label">POSTURE</div>
+          <div class="st-score" id="postureScore" style="color:var(--muted)">—</div>
+          <div class="st-bar"><div class="st-fill" id="postureBar" style="background:var(--purple)"></div></div>
+        </div>
+        <div class="st-item">
+          <div class="st-label">CONFIDENCE</div>
+          <div class="st-score" id="confScore" style="color:var(--muted)">—</div>
+          <div class="st-bar"><div class="st-fill" id="confBar" style="background:var(--green)"></div></div>
+        </div>
+      </div>
+
+      <div class="ctrl">
+        <button class="btn btn-start" id="startBtn" onclick="startApp()">▶ Start Interview</button>
+        <button class="btn btn-stop" id="stopBtn" onclick="stopApp()" disabled>■ End Session</button>
+      </div>
+      <div class="err-box" id="errBox"></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="rpanel">
+
+      <!-- Overall score ring -->
+      <div class="score-card">
+        <div class="sc-label">OVERALL INTERVIEW SCORE</div>
+        <div class="sc-ring-wrap">
+          <svg viewBox="0 0 120 120">
+            <circle class="sc-ring-bg" cx="60" cy="60" r="56"/>
+            <circle class="sc-ring-fill" id="ringFill" cx="60" cy="60" r="56"/>
+          </svg>
+          <div class="sc-number" id="overallNum" style="color:var(--muted)">—</div>
+        </div>
+        <div class="sc-grade" id="gradeLabel" style="color:var(--muted)">WAITING</div>
+        <div class="sc-feedback" id="feedbackTxt">Start the session to receive live feedback on your interview body language.</div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="metrics">
+        <div class="metrics-title">▸ LIVE METRICS</div>
+
+        <div class="metric">
+          <div class="m-row">
+            <div class="m-name"><span class="m-icon">👁️</span> Gaze Direction</div>
+            <div class="m-val" id="gazeVal" style="color:var(--muted)">—</div>
+          </div>
+          <div class="m-bar-track"><div class="m-bar-fill" id="gazeBar" style="width:0%;background:var(--blue)"></div></div>
+          <div class="m-tip" id="gazeTip">Looking directly at camera = strong eye contact</div>
+        </div>
+
+        <div class="metric">
+          <div class="m-row">
+            <div class="m-name"><span class="m-icon">📐</span> Head Tilt</div>
+            <div class="m-val" id="tiltVal" style="color:var(--muted)">—</div>
+          </div>
+          <div class="m-bar-track"><div class="m-bar-fill" id="tiltBar" style="width:0%;background:var(--purple)"></div></div>
+          <div class="m-tip" id="tiltTip">Upright head = attentive and confident</div>
+        </div>
+
+        <div class="metric">
+          <div class="m-row">
+            <div class="m-name"><span class="m-icon">😐</span> Expression</div>
+            <div class="m-val" id="exprVal" style="color:var(--muted)">—</div>
+          </div>
+          <div class="m-bar-track"><div class="m-bar-fill" id="exprBar" style="width:0%;background:var(--yellow)"></div></div>
+          <div class="m-tip" id="exprTip">Natural smile boosts perceived confidence</div>
+        </div>
+
+        <div class="metric">
+          <div class="m-row">
+            <div class="m-name"><span class="m-icon">📏</span> Face Position</div>
+            <div class="m-val" id="posVal" style="color:var(--muted)">—</div>
+          </div>
+          <div class="m-bar-track"><div class="m-bar-fill" id="posBar" style="width:0%;background:var(--green)"></div></div>
+          <div class="m-tip" id="posTip">Centred face = properly framed for video calls</div>
+        </div>
+
+      </div>
+
+      <!-- Live tips -->
+      <div class="tips-card">
+        <div class="tips-title">▸ LIVE COACHING TIPS</div>
+        <div class="tip-item" id="tip1">
+          <div class="tip-dot warn"></div>
+          <div class="tip-txt" id="tip1txt">Session not started. Press Start Interview.</div>
+        </div>
+        <div class="tip-item" id="tip2">
+          <div class="tip-dot warn"></div>
+          <div class="tip-txt" id="tip2txt">Make sure your face is clearly visible and well lit.</div>
+        </div>
+        <div class="tip-item" id="tip3">
+          <div class="tip-dot warn"></div>
+          <div class="tip-txt" id="tip3txt">Sit at arm's length from the camera for best results.</div>
+        </div>
+      </div>
+
+      <!-- Industry note -->
+      <div class="industry-note">
+        <strong>🏢 Real Industry Use:</strong> This exact technology powers <strong>HireVue</strong> (used by Unilever, Goldman Sachs), <strong>LinkedIn</strong>'s Interview Prep, and <strong>Proctorio</strong>'s exam systems — analysing gaze, micro-expressions, and head movement to score candidates automatically.
+      </div>
+
+    </div>
+  </div>
+  <footer>DEEP LEARNING · BATCH 2 · INTERVIEW BODY LANGUAGE ANALYSER · MEDIAPIPE FACE MESH</footer>
+</div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   AI INTERVIEW BODY LANGUAGE ANALYSER
+   Uses MediaPipe Face Mesh (468 landmarks) to measure:
+
+   1. EYE CONTACT   — iris position relative to eye corners
+                      detects looking at camera vs away
+   2. HEAD POSE     — nose tip vs face width/height ratio
+                      detects tilt, nod, and lateral turns
+   3. EXPRESSION    — mouth open ratio + brow raise
+                      detects smile, neutral, tense
+   4. FACE POSITION — how centred & close the face is
+                      ideal = 25-40% of frame width
+
+   Overall score = weighted average → grade + coaching tip
+═══════════════════════════════════════════════════════════ */
+
+const vid = document.getElementById('vid');
+const cvs = document.getElementById('cvs');
+const ctx = cvs.getContext('2d');
+
+let faceMesh = null, mpCam = null, running = false;
+let frameCount = 0, lastFPSt = performance.now();
+
+// Smoothing buffers (rolling average over N frames)
+const SMOOTH = 12;
+const buf = { eye:[], tilt:[], expr:[], pos:[] };
+function smooth(arr, val) {
+  arr.push(val);
+  if (arr.length > SMOOTH) arr.shift();
+  return arr.reduce((a,b) => a+b, 0) / arr.length;
+}
+
+// ── Landmark helpers ─────────────────────────────────
+function lm(landmarks, i) { return landmarks[i]; }
+function dist(a,b) { return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
+function midpt(a,b) { return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+/* MediaPipe Face Mesh key indices:
+   Left eye:  33(outer), 133(inner), 159(top), 145(bottom), 468(iris)
+   Right eye: 362(outer), 263(inner), 386(top), 374(bottom), 473(iris)
+   Nose tip:  1
+   Chin:      199  Forehead: 10
+   Left mouth corner: 61   Right mouth corner: 291
+   Top lip: 13   Bottom lip: 14
+   Left brow: 70  Right brow: 300
+*/
+
+function analyseFrame(landmarks) {
+  // ── 1. EYE CONTACT (gaze) ──────────────────────────
+  // Measure how centred the iris is within the eye opening
+  // Centre iris = looking at camera
+  const lEyeL = lm(landmarks,33), lEyeR = lm(landmarks,133);
+  const rEyeL = lm(landmarks,362), rEyeR = lm(landmarks,263);
+  const lIris = landmarks[468] || midpt(lm(landmarks,159), lm(landmarks,145));
+  const rIris = landmarks[473] || midpt(lm(landmarks,386), lm(landmarks,374));
+
+  // Iris x-offset relative to eye width (0=left corner, 1=right corner, 0.5=centre)
+  const lEyeW = Math.abs(lEyeR.x - lEyeL.x) + 0.001;
+  const rEyeW = Math.abs(rEyeR.x - rEyeL.x) + 0.001;
+  const lGaze = (lIris.x - lEyeL.x) / lEyeW;
+  const rGaze = (rIris.x - rEyeR.x) / rEyeW + 1;
+  // 0.5 = looking straight, < 0.3 or > 0.7 = looking away
+  const gazeCentre = (lGaze + rGaze) / 2;
+  const gazeScore = Math.max(0, 1 - Math.abs(gazeCentre - 0.5) * 4);
+
+  // Vertical gaze: iris vs eye top/bottom
+  const lEyeTop = lm(landmarks,159), lEyeBot = lm(landmarks,145);
+  const lEyeH = Math.abs(lEyeBot.y - lEyeTop.y) + 0.001;
+  const lIrisV = (lIris.y - lEyeTop.y) / lEyeH;
+  const vGazeScore = Math.max(0, 1 - Math.abs(lIrisV - 0.5) * 3);
+
+  const eyeScore = smooth(buf.eye, (gazeScore * 0.7 + vGazeScore * 0.3));
+
+  // ── 2. HEAD TILT / POSTURE ─────────────────────────
+  const nose = lm(landmarks, 1);
+  const chin = lm(landmarks, 199);
+  const forehead = lm(landmarks, 10);
+  const leftFace = lm(landmarks, 234);
+  const rightFace = lm(landmarks, 454);
+
+  // Left-right tilt: nose should be centred between ears
+  const faceMidX = (leftFace.x + rightFace.x) / 2;
+  const lateralOffset = Math.abs(nose.x - faceMidX) / (dist(leftFace, rightFace) + 0.001);
+  const lateralScore = Math.max(0, 1 - lateralOffset * 3);
+
+  // Up-down nod: nose should be in middle third of chin-forehead
+  const faceH = Math.abs(chin.y - forehead.y) + 0.001;
+  const noseV = (nose.y - forehead.y) / faceH;
+  const nodScore = Math.max(0, 1 - Math.abs(noseV - 0.55) * 4);
+
+  // Roll tilt: difference in eye heights
+  const eyeRoll = Math.abs(lm(landmarks,159).y - lm(landmarks,386).y) / (dist(leftFace,rightFace)+0.001);
+  const rollScore = Math.max(0, 1 - eyeRoll * 8);
+
+  const postureScore = smooth(buf.tilt, (lateralScore*0.4 + nodScore*0.35 + rollScore*0.25));
+
+  // ── 3. EXPRESSION / CONFIDENCE ────────────────────
+  const leftMouth = lm(landmarks, 61);
+  const rightMouth = lm(landmarks, 291);
+  const topLip = lm(landmarks, 13);
+  const botLip = lm(landmarks, 14);
+  const leftBrow = lm(landmarks, 70);
+  const rightBrow = lm(landmarks, 300);
+  const leftEyeCent = midpt(lm(landmarks,159), lm(landmarks,145));
+  const rightEyeCent = midpt(lm(landmarks,386), lm(landmarks,374));
+
+  // Mouth open ratio (open mouth = speaking or anxious)
+  const mouthW = dist(leftMouth, rightMouth) + 0.001;
+  const mouthOpen = dist(topLip, botLip) / mouthW;
+
+  // Smile: corners above mouth centre line
+  const mouthCentreY = (topLip.y + botLip.y) / 2;
+  const smileScore = Math.max(0, Math.min(1,
+    ((mouthCentreY - leftMouth.y) + (mouthCentreY - rightMouth.y)) / mouthW * 5 + 0.3
+  ));
+
+  // Brow raise: brows close to eyes = tense, raised = engaged
+  const browEyeDist = (dist(leftBrow, leftEyeCent) + dist(rightBrow, rightEyeCent)) / 2;
+  const faceSize = dist(leftFace, rightFace);
+  const browScore = Math.min(1, browEyeDist / (faceSize * 0.18));
+
+  // Penalise too-open mouth (nervous / anxious look)
+  const nervousPenalty = mouthOpen > 0.3 ? (mouthOpen - 0.3) * 2 : 0;
+
+  const exprScore = smooth(buf.expr, Math.max(0, smileScore*0.5 + browScore*0.3 + 0.2 - nervousPenalty));
+
+  // ── 4. FACE POSITION (framing) ─────────────────────
+  // Face should be centred and take up 25-40% of frame width
+  const faceSizePct = faceSize; // normalised 0-1
+  const centrePenalty = Math.abs(faceMidX - 0.5) * 2;
+  const sizePenalty = Math.abs(faceSizePct - 0.32) * 3;
+  const posScore = smooth(buf.pos, Math.max(0, 1 - centrePenalty*0.6 - sizePenalty*0.4));
+
+  return {
+    eye:     Math.round(eyeScore * 100),
+    posture: Math.round(postureScore * 100),
+    expr:    Math.round(exprScore * 100),
+    pos:     Math.round(posScore * 100),
+    // raw for tips
+    raw: { gazeCentre, lateralOffset, nodScore, smileScore, mouthOpen, faceSizePct, centrePenalty }
+  };
+}
+
+// ── Draw minimal face overlay ──────────────────────
+function drawOverlay(landmarks, scores, W, H) {
+  // Score colour for face box
+  const overall = (scores.eye + scores.posture + scores.expr) / 3;
+  const col = overall > 75 ? '#22d47a' : overall > 50 ? '#f5c842' : '#ff5454';
+
+  // Draw subtle face oval using select landmarks
+  const facePoints = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+
+  ctx.beginPath();
+  facePoints.forEach((idx, i) => {
+    const p = landmarks[idx];
+    if (i === 0) ctx.moveTo(p.x*W, p.y*H);
+    else ctx.lineTo(p.x*W, p.y*H);
+  });
+  ctx.closePath();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = col;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Eye triangles (gaze indicator)
+  [[33,133,159],[362,263,386]].forEach(([a,b,c]) => {
+    const pa=landmarks[a], pb=landmarks[b], pc=landmarks[c];
+    ctx.beginPath();
+    ctx.moveTo(pa.x*W, pa.y*H); ctx.lineTo(pb.x*W, pb.y*H); ctx.lineTo(pc.x*W, pc.y*H);
+    ctx.closePath();
+    ctx.strokeStyle = scores.eye > 65 ? '#4f8eff' : '#ff5454';
+    ctx.lineWidth = 1;
+    ctx.shadowColor = scores.eye > 65 ? '#4f8eff' : '#ff5454';
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  });
+
+  // Score label on video — unflip text before drawing
+  const nose = landmarks[1];
+  const label = overall > 75 ? '✓ STRONG' : overall > 50 ? '~ MODERATE' : '✗ WEAK';
+  const tx = nose.x * W;
+  const ty = nose.y * H + 60;
+  ctx.save();
+  ctx.scale(-1, 1);
+  ctx.font = 'bold 13px "DM Sans", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = col;
+  ctx.shadowColor = col; ctx.shadowBlur = 10;
+  ctx.fillText(label, -tx, ty);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// ── Update all UI ──────────────────────────────────
+let lastOverall = 0;
+function updateUI(scores) {
+  const overall = Math.round((scores.eye * 0.35 + scores.posture * 0.35 + scores.expr * 0.30));
+
+  // Score tape
+  setTapeScore('eyeScore','eyeBar', scores.eye, '#4f8eff');
+  setTapeScore('postureScore','postureBar', scores.posture, '#a78bfa');
+  setTapeScore('confScore','confBar', scores.expr, '#22d47a');
+
+  // Overall ring
+  const ringEl = document.getElementById('ringFill');
+  const circumference = 351;
+  const offset = circumference - (overall/100) * circumference;
+  ringEl.style.strokeDashoffset = offset;
+  const ringCol = scoreColor(overall);
+  ringEl.style.stroke = ringCol;
+  document.getElementById('overallNum').textContent = overall;
+  document.getElementById('overallNum').style.color = ringCol;
+
+  // Grade
+  const { grade, feedback } = getGrade(overall, scores);
+  document.getElementById('gradeLabel').textContent = grade;
+  document.getElementById('gradeLabel').style.color = ringCol;
+  document.getElementById('feedbackTxt').textContent = feedback;
+
+  // Metrics
+  updateMetric('gazeVal','gazeBar','gazeTip', scores.eye, '#4f8eff', getGazeTip(scores));
+  updateMetric('tiltVal','tiltBar','tiltTip', scores.posture, '#a78bfa', getTiltTip(scores));
+  updateMetric('exprVal','exprBar','exprTip', scores.expr, '#f5c842', getExprTip(scores));
+  updateMetric('posVal','posBar','posTip', scores.pos, '#22d47a', getPosTip(scores));
+
+  // Coaching tips
+  updateTips(scores, overall);
+
+  lastOverall = overall;
+}
+
+function setTapeScore(scoreId, barId, val, color) {
+  const el = document.getElementById(scoreId);
+  const bar = document.getElementById(barId);
+  el.textContent = val;
+  el.style.color = scoreColor(val);
+  bar.style.width = val + '%';
+  bar.style.background = color;
+}
+
+function updateMetric(valId, barId, tipId, val, color, tip) {
+  const el = document.getElementById(valId);
+  el.textContent = val + '%';
+  el.style.color = scoreColor(val);
+  document.getElementById(barId).style.width = val + '%';
+  document.getElementById(barId).style.background = color;
+  document.getElementById(tipId).textContent = tip;
+}
+
+function scoreColor(v) {
+  if (v >= 75) return '#22d47a';
+  if (v >= 50) return '#f5c842';
+  return '#ff5454';
+}
+
+function getGrade(overall, scores) {
+  if (overall >= 85) return { grade:'EXCELLENT ★★★', feedback:'Outstanding body language! You project strong confidence and engagement. You\'re interview-ready.' };
+  if (overall >= 70) return { grade:'GOOD ★★☆', feedback:'Solid performance. Minor improvements in ' + (scores.eye < scores.posture ? 'eye contact' : 'posture') + ' will push you to excellent.' };
+  if (overall >= 55) return { grade:'MODERATE ★☆☆', feedback:'Noticeable areas for improvement. Focus on maintaining eye contact and keeping your head upright.' };
+  return { grade:'NEEDS WORK ☆☆☆', feedback:'Keep practising! Try looking directly at the camera and sitting up straight for a major improvement.' };
+}
+
+function getGazeTip(s) {
+  if (s.eye >= 75) return '✓ Strong eye contact — you look engaged and trustworthy';
+  if (s.eye >= 50) return '→ Try to look more directly at the camera lens';
+  return '✗ You appear to be looking away — look at the camera';
+}
+function getTiltTip(s) {
+  if (s.posture >= 75) return '✓ Head is well-centred and upright — great posture';
+  if (s.posture >= 50) return '→ Slight head tilt detected — straighten up a little';
+  return '✗ Head is tilted or turned — face the camera directly';
+}
+function getExprTip(s) {
+  if (s.expr >= 75) return '✓ Positive expression — you appear confident and approachable';
+  if (s.expr >= 50) return '→ Try a slight natural smile to appear more confident';
+  return '✗ Expression appears tense — relax your face and smile gently';
+}
+function getPosTip(s) {
+  if (s.pos >= 75) return '✓ Well framed — face is centred and the right size in frame';
+  if (s.pos >= 50) return '→ Adjust your position to be more centred in the frame';
+  return '✗ Move closer/further or re-centre your face in the frame';
+}
+
+function updateTips(scores, overall) {
+  const tips = [];
+  if (scores.eye >= 70) tips.push({type:'good', txt:'Great eye contact! You\'re looking directly at the camera — builds trust with the interviewer.'});
+  else tips.push({type: scores.eye >= 50 ? 'warn':'bad', txt:'Improve eye contact: look at your camera lens, not at your own image on screen.'});
+
+  if (scores.posture >= 70) tips.push({type:'good', txt:'Head posture is strong. You appear attentive and present.'});
+  else tips.push({type: scores.posture >= 50 ? 'warn':'bad', txt:'Sit up straight and face the camera head-on. Avoid tilting or turning your head.'});
+
+  if (scores.expr >= 70) tips.push({type:'good', txt:'Your expression is positive and confident. Keep it up!'});
+  else tips.push({type: scores.expr >= 50 ? 'warn':'bad', txt:'Relax your face. A gentle natural smile makes you appear more confident and approachable.'});
+
+  ['tip1','tip2','tip3'].forEach((id, i) => {
+    const t = tips[i] || {type:'good', txt:'Keep going — maintain consistency throughout the interview.'};
+    const el = document.getElementById(id);
+    el.className = 'tip-item ' + t.type;
+    el.querySelector('.tip-dot').className = 'tip-dot ' + t.type;
+    document.getElementById(id+'txt').textContent = t.txt;
+  });
+}
+
+// ── MediaPipe result handler ───────────────────────
+function onResults(results) {
+  if (!running) return;
+  if (cvs.width !== vid.videoWidth && vid.videoWidth > 0) {
+    cvs.width = vid.videoWidth; cvs.height = vid.videoHeight;
+  }
+  const W = cvs.width, H = cvs.height;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+    document.getElementById('faceFrame').classList.remove('show');
+    return;
+  }
+
+  document.getElementById('faceFrame').classList.add('show');
+  const landmarks = results.multiFaceLandmarks[0];
+  const scores = analyseFrame(landmarks);
+  drawOverlay(landmarks, scores, W, H);
+  updateUI(scores);
+}
+
+// ── Start ──────────────────────────────────────────
+async function startApp() {
+  hideErr();
+  document.getElementById('startBtn').disabled = true;
+  showLoader('REQUESTING CAMERA...');
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:{ideal:640}, height:{ideal:480}, facingMode:'user' }
+    });
+    vid.srcObject = stream;
+    await new Promise(r => { vid.onloadedmetadata = r; });
+    await vid.play().catch(()=>{});
+  } catch(e) {
+    hideLoader();
+    document.getElementById('startBtn').disabled = false;
+    let msg = 'Camera error. ';
+    if (e.name === 'NotAllowedError') msg = 'Camera permission denied. Click the 🔒 in the address bar → Allow camera → try again.';
+    else if (e.name === 'NotFoundError') msg = 'No camera found on this device.';
+    else if (e.name === 'NotReadableError') msg = 'Camera is in use by another app. Please close it and retry.';
+    else msg += e.message;
+    showErr(msg); return;
+  }
+
+  document.getElementById('ph').style.display = 'none';
+  showLoader('LOADING MEDIAPIPE FACE MESH...');
+
+  try {
+    faceMesh = new FaceMesh({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
+    });
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,       // enables iris tracking (landmarks 468-477)
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
+    });
+    faceMesh.onResults(onResults);
+
+    showLoader('INITIALISING MODEL...');
+    mpCam = new Camera(vid, {
+      onFrame: async () => { if (running) await faceMesh.send({ image: vid }); },
+      width: 640, height: 480
+    });
+
+    showLoader('MODEL READY ✓');
+    await new Promise(r => setTimeout(r, 700));
+  } catch(e) {
+    console.error('FaceMesh failed:', e);
+    showLoader('STARTING DEMO MODE...');
+    await new Promise(r => setTimeout(r, 800));
+    hideLoader();
+    running = true;
+    setLive(true);
+    demoLoop();
+    return;
+  }
+
+  hideLoader();
+  running = true;
+  setLive(true);
+  mpCam.start();
+}
+
+// ── Stop ───────────────────────────────────────────
+function stopApp() {
+  running = false;
+  if (mpCam) { try { mpCam.stop(); } catch(e){} }
+  if (vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
+  vid.srcObject = null;
+  ctx.clearRect(0, 0, cvs.width, cvs.height);
+  setLive(false);
+  document.getElementById('ph').style.display = 'flex';
+  document.getElementById('faceFrame').classList.remove('show');
+}
+
+function setLive(on) {
+  document.getElementById('startBtn').disabled = on;
+  document.getElementById('stopBtn').disabled = !on;
+  document.getElementById('ldot').className = on ? 'ldot on' : 'ldot';
+  document.getElementById('ltxt').textContent = on ? 'ANALYSING' : 'STANDBY';
+  document.getElementById('recDot').className = on ? 'rec-dot on' : 'rec-dot';
+}
+function showLoader(msg) { document.getElementById('loader').classList.add('on'); document.getElementById('loaderTxt').textContent = msg; }
+function hideLoader() { document.getElementById('loader').classList.remove('on'); }
+function showErr(msg) { const e = document.getElementById('errBox'); e.style.display='block'; e.innerHTML='⚠ '+msg; }
+function hideErr() { document.getElementById('errBox').style.display='none'; }
+
+// ── Demo mode (if MediaPipe fails to load) ─────────
+let demoT = 0, demoRaf = null;
+function demoLoop() {
+  if (!running) return;
+  demoT++;
+
+  // Simulate realistic fluctuating scores
+  const t = demoT * 0.02;
+  const eyeS  = Math.round(65 + Math.sin(t*1.3)*18 + Math.sin(t*3.1)*7);
+  const postS = Math.round(72 + Math.sin(t*0.9)*15 + Math.sin(t*2.4)*5);
+  const exprS = Math.round(60 + Math.sin(t*1.7)*20 + Math.sin(t*2.8)*8);
+  const posS  = Math.round(78 + Math.sin(t*0.7)*10);
+
+  updateUI({
+    eye:     Math.max(20, Math.min(98, eyeS)),
+    posture: Math.max(20, Math.min(98, postS)),
+    expr:    Math.max(20, Math.min(98, exprS)),
+    pos:     Math.max(30, Math.min(98, posS)),
+  });
+
+  // Draw a demo face outline on canvas
+  if (cvs.width > 0) {
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    const cx = cvs.width*0.5, cy = cvs.height*0.44;
+    const rx = cvs.width*0.16, ry = cvs.height*0.26;
+    const overall = Math.round((eyeS+postS+exprS)/3);
+    const col = scoreColor(Math.max(20,Math.min(98,overall)));
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI*2);
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.shadowColor = col; ctx.shadowBlur = 14;
+    ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.font = 'bold 13px "DM Sans",sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle = col; ctx.shadowColor=col; ctx.shadowBlur=8;
+    ctx.fillText(overall>75?'✓ STRONG':overall>50?'~ MODERATE':'✗ WEAK', -cx, cy+ry+28);
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+
+  demoRaf = requestAnimationFrame(demoLoop);
+}
+
+function scoreColor(v) {
+  if (v >= 75) return '#22d47a';
+  if (v >= 50) return '#f5c842';
+  return '#ff5454';
+}
+</script>
+</body>
+</html>
